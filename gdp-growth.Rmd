@@ -1,0 +1,371 @@
+---
+title: "Group9 Econometrics Assignment 1"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(AER)
+library(lmtest)
+```
+
+
+```{r}
+data = readxl::read_xlsx("~/Desktop/11 Eco-metrics/04 Assignment/growthdata.xlsx")
+str(data)
+summary(data)
+```
+
+## 1. Using R, compute the sample mean and standard deviation of growth and tradeshr.
+> sample mean of growth
+
+```{r}
+mean(data$growth)
+```
+> sample mean of tradeshr
+
+```{r}
+mean(data$tradeshr)
+```
+> standard deviation of growth
+
+```{r}
+sd(data$growth)
+```
+> standard deviation of tradeshr
+
+```{r}
+sd(data$tradeshr)
+```
+
+
+## 2. Estimate a regression of growth on tradeshr with heteroskedasticity-robust standard errors.
+### a) What is the coefficient on tradeshr? Explain in words what it means. Is the numerical value of your estimate large or small in an economic (real-world) sense?
+
+> The coefficient on tradeshr is 2.3064. It means that if tradeshr increases by 1 percent point, then growth will increase 2.3064 percent point. In a real-world sense, the value is large.
+
+```{r}
+md_a = lm(growth ~ tradeshr, data = data)
+res = summary(md_a)
+res
+```
+
+### b) Graph the data points and the estimated regression line.
+```{r}
+plot(data$tradeshr, data$growth)
+lines(data$tradeshr, md_a$fitted.values , col = "blue")
+title("Estimated Regression Line")
+```
+
+
+### c) Is the slope coefficient statistically significantly different from zero at the 5% significance level? Show how you reach this conclusion.
+
+> Using heteroskedasticity-robust standard errors, the p-value for t test of slope coefficient is 0.0009235. Therefore, at the 5% significance level, we rejust null hypothesis and conclude that slope coefficient is statistically significantly different from zero.
+
+```{r}
+vcov = vcovHC(md_a, type = "HC1")
+coeftest(md_a, vcov. = vcov)
+```
+
+
+
+### d) Report the 95% confidence interval for $\beta_1$, the slope of the population regression line.
+
+> The 95% confidence interval for $\beta_1$ is $[1.006415,3.606452]$.
+
+```{r}
+slope = md_a$coefficients[2]
+robust_se = sqrt(diag(vcov))
+
+slope + robust_se[2] * qnorm(1 - 0.025, mean = 0, sd = 1)
+slope - robust_se[2] * qnorm(1 - 0.025, mean = 0, sd = 1)
+```
+
+
+
+### e) What is the $R^2$ of this regression? What does this mean?
+> The $R^2$ is 0.1236802, which means 12.36802% of the variance in dependent variable, growth, can be explained by the variance of independent variable, tradeshr. 
+
+```{r}
+res$r.squared
+```
+
+### f) Compute the correlation coefficient between growth and tradeshr, and compare its square to the R2. How are the correlation coefficient and the $R^2$ related?
+> $R^2$ is the square of the correlation coefficient.
+
+```{r}
+cor(data$growth, data$tradeshr)
+cor(data$growth, data$tradeshr)^2
+```
+
+### g) What is the value of the root mean squared error of the regression? What does this mean?
+> The value of RMSE is 1.762217. It means the standard deviation of the unexplained variance.
+
+```{r}
+sqrt( sum(md_a$residuals^2) / length(data$growth) )
+```
+
+### h) Based on your graph from (b), does the regression error appear to be homoskedastic or heteroskedastic?
+> From Breusch–Pagan test, since the p-value is greater than 0.05, statistically we assume the regression error is heteroskedastic.
+
+```{r}
+bptest(md_a)
+```
+
+
+
+### i) Estimate the regression again with homoskedasticity-only standard errors. Compare the results to what you obtained with the heteroskedasticity-robust standard errors. What is different?
+
+> homoskedasticity-only:
+
+```{r}
+res
+```
+ > heteroskedasticity-robust:
+ 
+```{r}
+coeftest(md_a, vcov. = vcov)
+```
+
+> By comparing the two result, we can see that the homoskedasticity-only standard errors are inflated which leads to lower t-value, higher P-value and higher possibility for Type-1 errors.
+
+### j) You should see an outlier in the data set. Rerun the regression (with the “robust” option), dropping the outlier. Does dropping the outlier make a qualitative difference to your results? Explain.
+
+> As we can see from below, dropping the outlier does make a qualitative difference to the results. The cloud of points does not show an obvious increasing pattern so the regression line without the outlier is flatter than with the outlier. The outlier largely controls the slope of the regression, which makes it an influential point.
+
+```{r}
+data_clean = data.frame(growth = data$growth[data$tradeshr < 1.5], 
+                        tradeshr = data$tradeshr[data$tradeshr < 1.5])
+md_b = lm(growth ~ tradeshr, data = data_clean)
+
+intercept_b = md_b$coefficients[1]
+slope_b = md_b$coefficients[2]
+
+plot(data_clean$tradeshr, data_clean$growth, xlim = c(0,2.5), ylim = c(-3,8))
+points(data$tradeshr[data$tradeshr > 1.5], 
+       data$growth[data$tradeshr > 1.5], 
+       col = "red")
+lines(data$tradeshr, md_a$fitted.values , col = "blue")
+lines(data$tradeshr, 
+      intercept_b + slope_b * data$tradeshr , 
+      col = "purple")
+legend("topright", legend = c("Before", "After", "Outlier"), 
+       fill = c("blue", "purple", "red"))
+title("Estimated Regression Line Before and After Dropping the Outlier")
+```
+
+
+```{r}
+coeftest(md_a, vcov. = vcov)
+
+vcov_b = vcovHC(md_b, type = "HC1")
+coeftest(md_b, vcov. = vcov_b)
+```
+
+
+### k) What is the outlying observation? Considering the economics of the relation you are investigating, in your judgment should that outlier be omitted from the regression? (You might need to do a bit of research about that outlier to answer this question properly.)
+
+> The outlier is (1.992616, 6.652838).
+
+```{r}
+data$tradeshr[data$tradeshr > 1.5]
+data$growth[data$tradeshr > 1.5]
+```
+
+
+> To continue the above discussion, we think the outlier should be removed. The cloud of points does not show an obvious pattern, which explains why the outlier has a great influence on the slope. From the regression result after removing the outlier, we can see that the slope coefficient is not statistically significantly different from zero, indicating that actually tradeshr is not a good explanatory variable for growth. And that corresponds to what we derive from the cloud. But before removing the outlier, the regression result shows the exact opposite result. Thereby, we think the influence of the outlier is too influential to twist the regression result so the outlier should be removed.
+
+
+## 3. Construct a new variable, lorgdp60, which equals one if the country’s GDP is in the bottom quartile of GDP for 1960 and equals zero otherwise. Estimate a regression of growth on lorgdp60 with heteroskedasticity-robust standard errors.
+
+```{r}
+bottom_quartile=quantile(data$rgdp60, 0.25, names = FALSE)
+bottom_quartile
+```
+
+### a) What is the coefficient on lorgdp60? Explain in words what this means. Is the numerical value of your estimate large or small in an economic (real-world) sense?
+
+> The coefficient of lorgdp60 is -1.45439, this means that growth and the gdp of countries in the bottom quartile have a negative correlation. For example as the growth lowers, the gdp will become higher. From an economic context, the value is significant as it means that if the GDP* per capita increases by 1 unit, the growth will decrease by 1.4544 percent point.
+
+```{r}
+lorgdp60 = c()
+for (i in 1:length(data$rgdp60)){
+  if (data$rgdp60[i] <= bottom_quartile){
+    lorgdp60 = c(lorgdp60, 1)
+  }else{
+    lorgdp60 = c(lorgdp60, 0)
+  }
+}
+data$lorgdp60 = lorgdp60
+reg_growth_lorgdp60 = lm(growth ~ lorgdp60, data = data)
+res_growth_lorgdp60 = summary(reg_growth_lorgdp60)
+vcov = vcovHC(reg_growth_lorgdp60, type = "HC1")
+res = coeftest(reg_growth_lorgdp60, vcov. = vcov)
+res
+```
+
+```{r}
+plot(data$lorgdp60, data$growth)
+lines(data$lorgdp60, reg_growth_lorgdp60$fitted.values , col = "blue")
+title("Estimated regression line")
+```
+
+
+### b) Test the hypothesis that the mean growth rate from 1960-1995 is the same for countries with lorgdp60 = 1 as it is for countries with lorgdp60 = 0, against the alternative that they differ, at the 5% significance level.
+
+> Since the p-value (0.03315) is less than the significance level (0.05), we cannot accept the null hypothesis (mean(lorgdp1) = mean(lorgdp0))
+
+```{r}
+lorgdp1 = subset(data, lorgdp60==1)
+lorgdp0 = subset(data, lorgdp60==0)
+res_b = t.test(lorgdp0$growth, lorgdp1$growth)
+res_b
+```
+
+### c) Compute the sample average of growth for countries with lorgdp60 = 1 and then again for countries with lorgdp60 = 0; from this compute the difference in mean GDP growth rates for the two groups and construct the differences-of-means tstatistic testing the hypothesis that the mean growth rates are the same.
+
+> Since the p-value (0.005657) is less than the significance level (0.05), we cannot accept the null hypothesis that the mean growth rates are the same.
+
+```{r}
+res_c = t.test(lorgdp0$growth, lorgdp1$growth, var.equal = TRUE)
+res_c
+```
+
+### d) Reestimate the regression of growth on lorgdp60 with homoskedasticity-only standard errors. How does the t-statistic computed in (c) compare to the t-statistic on the slope coefficient in the regression of growth on lorgdp60 obtained with heteroskedasticity-robust and homoskedasticity-only standard errors? Explain.
+
+> Homoskdasticity-only:
+
+```{r}
+res_growth_lorgdp60
+```
+
+> Heteroskedasticity-robust:
+
+```{r}
+vcov_growth_lorgdp60 = vcovHC(reg_growth_lorgdp60, type = "HC1")
+coeftest(reg_growth_lorgdp60, vcov. = vcov_growth_lorgdp60)
+```
+
+> By comparing the two result, the homoskedasticity-only standard errors is more inflated than the heteroskesticity-robust which leads to lower t-value, higher P-value and higher possibility for Type-1 errors.
+
+## 4. Table 2 presents the results of three regressions, one in each column. Estimate the indicated regressions and fill in the values. For example, to fill in column (1), estimate the regression with growth as the dependent variable and tradeshr and school60 as the independent variables, with heteroskedasticity-robust standard errors, and fill in the estimated coefficients and standard errors; also compute and fill in the value of the F-statistic and p-value testing the hypothesis that the coefficients on tradeshr and school60 are both zero. The adjusted $R^2$ can be computed by rerunning this regression without the “robust” option. Note: the regressions in Table 2 all exclude the observation on Malta.
+
+![Table 2](~/Desktop/11 Eco-metrics/04 Assignment/Table2.png)
+
+```{r}
+data_4 = subset(data, country != 'Malta')
+data_4 = transform(data_4, civil = as.numeric(civil))
+str(data_4)
+```
+
+### Q4_1
+```{r}
+model_41 = lm(growth ~ tradeshr + school60, data = data_4)
+summary(model_41)
+
+coeftest(model_41, vcov. = vcovHC(model_41, type = "HC1"))
+
+r_41 = model_41$residuals
+RMSE_41 = sqrt(mean(r_41^2))
+RMSE_41
+
+linearHypothesis(model_41, c('tradeshr = 0', 'school60 = 0'), white.adjust = 'hc1')
+```
+
+### Q4_2
+```{r}
+model_42 = lm(growth ~ tradeshr + school60 + capstock60, data = data_4)
+summary(model_42)
+
+coeftest(model_42, vcov. = vcovHC(model_42, type = "HC1"))
+
+r_42 = model_42$residuals
+RMSE_42 = sqrt(mean(r_42^2))
+RMSE_42
+
+linearHypothesis(model_42, c('tradeshr = 0', 'school60 = 0'), white.adjust = 'hc1')
+linearHypothesis(model_42, c('tradeshr = 0', 'school60 = 0', 'capstock60 = 0'), white.adjust = 'hc1')
+```
+
+### Q4_3
+```{r}
+# make sure the data is clean before using this function
+data_43 = na.omit(data_4, cols = 'civil')
+model_43 = lm(growth ~ tradeshr + school60 + capstock60 + rev_coups + civil, data = data_43)
+summary(model_43)
+
+coeftest(model_43, vcov. = vcovHC(model_43, type = "HC1"))
+
+r_43 = model_43$residuals
+RMSE_43 = sqrt(mean(r_43^2))
+RMSE_43
+
+linearHypothesis(model_43, c('tradeshr = 0', 'school60 = 0'), white.adjust = 'hc1')
+linearHypothesis(model_43, c('tradeshr = 0', 'school60 = 0', 'capstock60 = 0'), white.adjust = 'hc1')
+linearHypothesis(model_43, c('rev_coups = 0', 'civil = 0'), white.adjust = 'hc1')
+```
+
+## 5. Estimate the regression of growth against tradeshr, school60, and oil. What is the coefficient on oil? Explain why you obtained this result.
+
+> As can be seen in the summary of regression, the coefficient of oil is not defined because of singularity, which means the regressor oil is not linearly independent.
+
+> In the datagrowth.xlsx, each entry in column 'oil' equals to 1 if oil accounted for at least half of exports of the country in 1960 or 0 otherwise. However, the data has excluded countries whose economies are dominated by oil export. Thus oil = 0 for all observations
+
+> A linear regression model with an intercept can equivalently be thought of as including a regressor, $X_{0i}$, that equals 1 for all i. Thus we can write $oil_i= 0 * X_{0i}$ for all the observations in our data set; that is, oil can be written as a perfect linear combination of the regressors; specifically, it equals $X_{0i}$. Therefore, oil is written off from the regression.
+
+```{r}
+model_5 = lm(growth ~ tradeshr + school60 + oil, data = data_4)
+summary(model_5)
+```
+
+
+## 6. Use Table 2 to answer the following questions.
+### a) Write the regression in column (1) in “equation form,” with the standard error below the respective regression coefficient.
+> $$
+  \begin{array}{lll lll lll}
+    growth =  & - & 0.122236   & + & 1.897823   &tradeshr  & + & 0.242975  & school60 \\
+              &   & (0.691165) &   & (0.865541) &         &   & (0.075892) &  
+  \end{array}
+  $$
+
+### b) Explain in words what the coefficient on school60 means in regression (1).
+> According to the regression(1), the coefficient on school60 is 0.242975. This means that a one percent point increase in school60 will lead to an increase of 0.242975 percentage points in the annual average growth rate of GDP. 
+
+### c) Using regression (1), test the hypothesis that the coefficient on tradeshr is zero, against the alternative that it is nonzero, at the 5% significance level. In everyday words (not statistical terms), what precisely is the hypothesis that you are testing?
+> The hypothesis of heteroskedasticity-robust test $H_0: \ \beta_{tradeshr}=0$ vs $H_1: \ \beta_{tradeshr} \ne 0$. The t-statistics we get is $\beta_{tradeshr}/Std.Err = 1.897823/0.86554 = 2.19264$, which is greater than 1.95(5%significance level). Hence in such case $H_0$ should be rejected and thus $\beta_{tradeshr}$ is statistically different from zero. In everyday words, we are testing if the average share of trade in the economy would affect GDP growth.
+
+### d) Does the coefficient on tradeshr differ in regressions (1), (2), and (3) in a substantively important way, that is, is the difference between the three estimates large in a real-world sense?
+> The value of coefficients on tradeshr are close in (1) and (2), which are 1.897823 and 1.81851 respectively. However, in (3) there is an apparent difference, which is 1.242975.
+
+### e) Economic theory predicts that tradeshr, school60, and capstock60 all are determinants of economic growth. Use regression (2) to test the hypothesis (at the 5% significance level) that the coefficients on these three economic variables are all zero, against the alternative that at least one coefficient is nonzero.
+> Here we utilise F-statistic to test the hypothesis that the coefficients on the indicated regressors are all zero. The value of the F-statistic we gained is 5.557 and its corresponding p-value is 0.001968, which is less than 0.05. Hence the hypothesis should be rejected and hence at least one of the coefficients is statistically significantly different from zero
+
+### f) Using regression (3), consider the coefficient on rev_coups. Does the sign and magnitude make sense? Explain.
+> According to the regression (3) model, we can see that the coefficient on rev_coups is -1.507077, which has a negative sign and a big magnitude, which means that a one percent point increase in revc will lead to a decrease of 1.507077 percentage points in the annual average growth rate of GDP. These make sence, as 'rev_coups' represents the average annual number of revolutions, insurrections (successful or not) and coup d’etats, which normally have quite significant negative impact on GDP growth in real life.
+
+### g) Using regression (3), consider the coefficient on civil. Does the sign and magnitude make sense? Explain.
+> According to the regression (3) model, we can see that the coefficient on civil we get is -0.335812, which has a negative sign and a relatively big magnitude, which means that a one percent point increase in revc will lead to a decrease of 0.335812 percentage points in the annual average growth rate of GDP. That makes sense, as 'civil' represents the index of civil liberties, and having fewer individual freedoms normally has negative impact on GDP growth in real life.
+
+### h) In regression (3), is the coefficient on rev_coups statistically significant at the 5% significance level? Is the coefficient on civil statistically significant at the 5% significance level?
+> The t-statistics we get for revc and civil are $|-1.507077/0.874604| = 1.723154$ and $|-0.335812/0.173024|=1.940841$, which are both smaller than than 1.95 (5% significance level). Hence in such case both of them are not statistically significant at the 5% significance level.
+
+### i) Use the heteroskedasticity-robust F-statistic to test the hypothesis (at the 1% signific nce level) that the coefficients on the political variables (rev_coups and civil) in regression (3) are both zero, against the alternative that one or the other or both are nonzero. Discuss in light of your answer to part (h).
+> Here we utilised heteroskedasticity-robust F-statistic to test the joint hypothesis that the both coefficients coefficients on the indicated regressors are zero. The value of the F-statistic we gained is 8.8766 and its corresponding p-value is 0.0004405, which is less than 0.01 (1% significance level). Hence the hypothesis should be rejected and hence one or the other or both are nonzero. Comparing with (h), we can see that although neither coefficients is individually significant at the 5% level, but jointly they are significant at the 1% level. The reason may be that those variables are correlated, so there is a moderate amount of imperfect multicollinearity.
+
+
+### j) The neoclassical theory of human capital suggests that countries with more human capital – that is, a better educated work force – will have a higher rate of productivity and therefore have a higher growth rate. Is this prediction borne out in the regression results? Explain.
+> Yes. Firstly,the coefficient on school60 is positive, which means the better educated work force has positive impact growth rate. Besides, the t-statistics we get for school60 in the three regressions are all statistically significant at the 5% level.
+
+### k) Explain why the coefficient on school60 and its standard error are so different in regressions (1) and (2).
+> In regression(2) model, we add capstock60 variable which has a negative coefficient. This makes sense as a country with low initial capital stock is more likely to have a low level of schooling. Hence due to the fact that we ignore capstock60 in regression(1) model, the coefficient on school60 reflects both the positive effect of schooling on GDP growth and the negative effect of capstock60 on GDP growth, which causes such variable bias situation happens.
+
+
+### l) Using regression (3), estimate the difference in growth rates between a country with 4 years of school and 8 years of school in 1960, holding constant the other variables in regression (3). Also compute a 95% confidence interval for this difference.
+> The estimated difference in growth rates is $4*\beta_{school60} = 4*0.391570=1.56628$ percent per year. The 95% confidence interval is $[4*\beta_{school60}-4*1.96*standard error(school60), 4*\beta_{school60}+4*1.96*standard error(school60)]=[0.551055, 2.581505]$.
+
+
